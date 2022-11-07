@@ -7,7 +7,7 @@ router.get('/',(req,res)=>{
 
 router.get('/meta_wa_callbackurl', (req, res) => {
     try {
-        console.log('GET: Someone is pinging me!');
+        console.log('GET: Someone is pinging me!' + process.env.Meta_WA_VerifyToken);
 
         let mode = req.query['hub.mode'];
         let token = req.query['hub.verify_token'];
