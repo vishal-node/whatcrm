@@ -53,6 +53,36 @@ router.post('/meta_wa_callbackurl', async (req, res) => {
             let typeOfMsg = incomingMessage.type; // extract the type of message (some are text, others are images, others are responses to buttons etc...)
             let message_id = incomingMessage.message_id; // extract the message id
 
+            // Start of cart logic
+                if (!CustomerSession.get(recipientPhone)) {
+                    CustomerSession.set(recipientPhone, {
+                        cart: [],
+                    });
+                }
+
+                let addToCart = async ({ product_id, recipientPhone }) => {
+                    let product = await Store.getProductById(product_id);
+                    if (product.status === 'success') {
+                        CustomerSession.get(recipientPhone).cart.push(product.data);
+                    }
+                };
+
+                let listOfItemsInCart = ({ recipientPhone }) => {
+                    let total = 0;
+                    let products = CustomerSession.get(recipientPhone).cart;
+                    total = products.reduce(
+                        (acc, product) => acc + product.price,
+                        total
+                    );
+                    let count = products.length;
+                    return { total, products, count };
+                };
+
+                let clearCart = ({ recipientPhone }) => {
+                    CustomerSession.get(recipientPhone).cart = [];
+                };
+                // End of cart logic
+
             if (typeOfMsg && typeOfMsg === 'text_message') {
                 await Whatsapp.sendSimpleButtons({
                     message: `Hey ${recipientName}, \nYou are speaking to a chatbot.\nWhat do you want to do next?`,
@@ -72,6 +102,92 @@ router.post('/meta_wa_callbackurl', async (req, res) => {
 
             if (typeOfMsg && typeOfMsg === 'simple_button_message') {
                 let button_id = incomingMessage.button_reply.id;
+
+                if (button_id.startsWith('add_to_cart_')) {
+                    let product_id = button_id.split('add_to_cart_')[1];
+                    await addToCart({ recipientPhone, product_id });
+                    let numberOfItemsInCart = listOfItemsInCart({ recipientPhone }).count;
+                
+                    await Whatsapp.sendSimpleButtons({
+                        message: `Your cart has been updated.\nNumber of items in cart: ${numberOfItemsInCart}.\n\nWhat do you want to do next?`,
+                        recipientPhone: recipientPhone, 
+                        listOfButtons: [
+                            {
+                                title: 'Checkout 🛍️',
+                                id: `checkout`,
+                            },
+                            {
+                                title: 'See more products',
+                                id: 'see_categories',
+                            },
+                        ],
+                    });
+                }
+
+                if (button_id === 'checkout') {
+                    let finalBill = listOfItemsInCart({ recipientPhone });
+                    let invoiceText = `List of items in your cart:\n`;
+                  
+                    finalBill.products.forEach((item, index) => {
+                        let serial = index + 1;
+                        invoiceText += `\n#${serial}: ${item.title} @ $${item.price}`;
+                    });
+                  
+                    invoiceText += `\n\nTotal: $${finalBill.total}`;
+                  
+                    Store.generatePDFInvoice({
+                        order_details: invoiceText,
+                        file_path: `./invoice_${recipientName}.pdf`,
+                    });
+                  
+                    await Whatsapp.sendText({
+                        message: invoiceText,
+                        recipientPhone: recipientPhone,
+                    });
+                  
+                    await Whatsapp.sendSimpleButtons({
+                        recipientPhone: recipientPhone,
+                        message: `Thank you for shopping with us, ${recipientName}.\n\nYour order has been received & will be processed shortly.`,
+                        message_id,
+                        listOfButtons: [
+                            {
+                                title: 'See more products',
+                                id: 'see_categories',
+                            },
+                            {
+                                title: 'Print my invoice',
+                                id: 'print_invoice',
+                            },
+                        ],
+                    });
+                  
+                    clearCart({ recipientPhone });
+                  }
+
+                  if (button_id === 'print_invoice') {
+                    // Send the PDF invoice
+                    await Whatsapp.sendDocument({
+                        recipientPhone: recipientPhone,
+                        caption:`Mom-N-Pop Shop invoice #${recipientName}`,
+                        file_path: `./invoice_${recipientName}.pdf`,
+                    });
+                  
+                    // Send the location of our pickup station to the customer, so they can come and pick up their order
+                    let warehouse = Store.generateRandomGeoLocation();
+                  
+                    await Whatsapp.sendText({
+                        recipientPhone: recipientPhone,
+                        message: `Your order has been fulfilled. Come and pick it up, as you pay, here:`,
+                    });
+                  
+                    await Whatsapp.sendLocation({
+                        recipientPhone,
+                        latitude: warehouse.latitude,
+                        longitude: warehouse.longitude,
+                        address: warehouse.address,
+                        name: 'Mom-N-Pop Shop',
+                    });
+                  }
             
                 if (button_id === 'speak_to_human') {
                     await Whatsapp.sendText({
@@ -154,6 +270,8 @@ router.post('/meta_wa_callbackurl', async (req, res) => {
             if (typeOfMsg === 'radio_button_message') {
                 let selectionId = incomingMessage.list_reply.id; // the customer clicked and submitted a radio button
 
+                
+
                 if (selectionId.startsWith('product_')) {
                     let product_id = selectionId.split('_')[1];
                     let product = await Store.getProductById(product_id);
@@ -200,6 +318,7 @@ router.post('/meta_wa_callbackurl', async (req, res) => {
                 }
                 
             }
+            await Whatsapp.markMessageAsRead({ message_id });
         }
         
         console.log('POST: Someone is pinging me!');
