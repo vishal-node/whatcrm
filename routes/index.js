@@ -53,7 +53,7 @@ router.post('/meta_wa_callbackurl', async (req, res) => {
             let typeOfMsg = incomingMessage.type; // extract the type of message (some are text, others are images, others are responses to buttons etc...)
             let message_id = incomingMessage.message_id; // extract the message id
 
-            if (typeOfMsg === 'text_message') {
+            if (typeOfMsg && typeOfMsg === 'text_message') {
                 await Whatsapp.sendSimpleButtons({
                     message: `Hey ${recipientName}, \nYou are speaking to a chatbot.\nWhat do you want to do next?`,
                     recipientPhone: recipientPhone, 
@@ -70,7 +70,7 @@ router.post('/meta_wa_callbackurl', async (req, res) => {
                 });
             }
         }
-        if (typeOfMsg === 'simple_button_message') {
+        if (typeOfMsg && typeOfMsg === 'simple_button_message') {
             let button_id = incomingMessage.button_reply.id;
         
             if (button_id === 'speak_to_human') {
