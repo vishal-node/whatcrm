@@ -69,87 +69,89 @@ router.post('/meta_wa_callbackurl', async (req, res) => {
                     ],
                 });
             }
+
+            if (typeOfMsg && typeOfMsg === 'simple_button_message') {
+                let button_id = incomingMessage.button_reply.id;
+            
+                if (button_id === 'speak_to_human') {
+                    await Whatsapp.sendText({
+                        recipientPhone: recipientPhone,
+                        message: `Arguably, chatbots are faster than humans.\nCall my human with the below details:`,
+                    });
+            
+                    await Whatsapp.sendContact({
+                        recipientPhone: recipientPhone,
+                        contact_profile: {
+                            addresses: [
+                                {
+                                    city: 'Nairobi',
+                                    country: 'Kenya',
+                                },
+                            ],
+                            name: {
+                                first_name: 'Daggie',
+                                last_name: 'Blanqx',
+                            },
+                            org: {
+                                company: 'Mom-N-Pop Shop',
+                            },
+                            phones: [
+                                {
+                                    phone: '+1 (555) 025-3483',
+                                },
+                                                    {
+                                    phone: '+254712345678',
+                                },
+                            ],
+                        },
+                    });
+                }
+                if (button_id === 'see_categories') {
+                    let categories = await Store.getAllCategories(); 
+                    await Whatsapp.sendSimpleButtons({
+                        message: `We have several categories.\nChoose one of them.`,
+                        recipientPhone: recipientPhone, 
+                        listOfButtons: categories.data
+                            .map((category) => ({
+                                title: category,
+                                id: `category_${category}`,
+                            }))
+                            .slice(0, 3)
+                    });
+                }
+                if (button_id.startsWith('category_')) {
+                    let selectedCategory = button_id.split('category_')[1];
+                    let listOfProducts = await Store.getProductsInCategory(selectedCategory);
+                
+                    let listOfSections = [
+                        {
+                            title: `🏆 Top 3: ${selectedCategory}`.substring(0,24),
+                            rows: listOfProducts.data
+                                .map((product) => {
+                                    let id = `product_${product.id}`.substring(0,256);
+                                    let title = product.title.substring(0,21);
+                                    let description = `${product.price}\n${product.description}`.substring(0,68);
+                                   
+                                    return {
+                                        id,
+                                        title: `${title}...`,
+                                        description: `$${description}...`
+                                    };
+                                }).slice(0, 10)
+                        },
+                    ];
+                
+                    await Whatsapp.sendRadioButtons({
+                        recipientPhone: recipientPhone,
+                        headerText: `#BlackFriday Offers: ${selectedCategory}`,
+                        bodyText: `Our Santa 🎅🏿 has lined up some great products for you based on your previous shopping history.\n\nPlease select one of the products below:`,
+                        footerText: 'Powered by: BMI LLC',
+                        listOfSections,
+                    });
+                }
+            };
         }
-        if (typeOfMsg && typeOfMsg === 'simple_button_message') {
-            let button_id = incomingMessage.button_reply.id;
         
-            if (button_id === 'speak_to_human') {
-                await Whatsapp.sendText({
-                    recipientPhone: recipientPhone,
-                    message: `Arguably, chatbots are faster than humans.\nCall my human with the below details:`,
-                });
-        
-                await Whatsapp.sendContact({
-                    recipientPhone: recipientPhone,
-                    contact_profile: {
-                        addresses: [
-                            {
-                                city: 'Nairobi',
-                                country: 'Kenya',
-                            },
-                        ],
-                        name: {
-                            first_name: 'Daggie',
-                            last_name: 'Blanqx',
-                        },
-                        org: {
-                            company: 'Mom-N-Pop Shop',
-                        },
-                        phones: [
-                            {
-                                phone: '+1 (555) 025-3483',
-                            },
-                                                {
-                                phone: '+254712345678',
-                            },
-                        ],
-                    },
-                });
-            }
-            if (button_id === 'see_categories') {
-                let categories = await Store.getAllCategories(); 
-                await Whatsapp.sendSimpleButtons({
-                    message: `We have several categories.\nChoose one of them.`,
-                    recipientPhone: recipientPhone, 
-                    listOfButtons: categories.data
-                        .map((category) => ({
-                            title: category,
-                            id: `category_${category}`,
-                        }))
-                        .slice(0, 3)
-                });
-            }
-            if (button_id.startsWith('category_')) {
-                let selectedCategory = button_id.split('category_')[1];
-                let listOfProducts = await Store.getProductsInCategory(selectedCategory);
-            
-                let listOfSections = [
-                    {
-                        title: `🏆 Top 3: ${selectedCategory}`.substring(0,24),
-                        rows: listOfProducts.data
-                            .map((product) => {
-                                let id = `product_${product.id}`.substring(0,256);
-                                let title = product.title.substring(0,21);
-                                let description = `${product.price}\n${product.description}`.substring(0,68);
-                               
-                                return {
-                                    id,
-                                    title: `${title}...`,
-                                    description: `$${description}...`
-                                };
-                            }).slice(0, 10)
-                    },
-                ];
-            
-                await Whatsapp.sendRadioButtons({
-                    recipientPhone: recipientPhone,
-                    headerText: `#BlackFriday Offers: ${selectedCategory}`,
-                    bodyText: `Our Santa 🎅🏿 has lined up some great products for you based on your previous shopping history.\n\nPlease select one of the products below:`,
-                    footerText: 'Powered by: BMI LLC',
-                    listOfSections,
-                });
-            }
-        };
         console.log('POST: Someone is pinging me!');
         return res.sendStatus(200);
     } catch (error) {
