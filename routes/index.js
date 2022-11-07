@@ -12,12 +12,13 @@ router.get('/meta_wa_callbackurl', (req, res) => {
         let mode = req.query['hub.mode'];
         let token = req.query['hub.verify_token'];
         let challenge = req.query['hub.challenge'];
+        const tk = "YouCanSetYourOwnToken";
 
         if (
             mode &&
             token &&
             mode === 'subscribe' &&
-            process.env.Meta_WA_VerifyToken === token
+            tk === token
         ) {
             return res.status(200).send(challenge);
         } else {
